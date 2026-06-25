@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Office Escape</title>
+  <style>
+    @font-face {
+      font-family: 'DadFont';
+      src: url('assets/fonts/나눔손글씨 아빠글씨.ttf') format('truetype');
+    }
+
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box; user-select: none;
+    }
+
+    body {
+      background: #000;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'DadFont', 'Nanum Gothic', sans-serif;
+      color: #fff;
+    }
+
+    /* ── Opening ── */
+    #opening {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 50;
+    }
+    #opening-text {
+      font-size: 19px;
+      line-height: 2.1;
+      text-align: center;
+      max-width: 600px;
+      padding: 0 24px;
+      white-space: pre-line;
+    }
+    #opening-hint {
+      position: absolute;
+      bottom: 48px;
+      font-size: 13px;
+      color: #555;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+    /* ── Scene ── */
+    #scene {
+      position: fixed;
+      inset: 0;
+      display: none;
+    }
+    #scene-wrap {
+      position: absolute;
+    }
+    #scene-bg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .hs {
+      position: absolute;
+      cursor: pointer;
+    }
+    .hs:hover {
+      background: rgba(255,255,200,.1);
+      outline: 1px solid rgba(255,255,200,.25);
+    }
+
+    /* ── Text bar ── */
+    #textbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,.85);
+      padding: 18px 72px;
+      font-size: 17px;
+      line-height: 1.85;
+      text-align: center;
+      white-space: pre-line;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .35s;
+      z-index: 200;
+    }
+    #textbar.on { opacity: 1; }
+
+    /* ── Popup overlay ── */
+    #popup {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.88);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 52px 20px 20px;
+      z-index: 100;
+    }
+    #popup.on { display: flex; }
+
+    /* popup-wrap is sized to match the displayed image exactly */
+    #popup-wrap {
+      position: relative;
+    }
+    #popup-img {
+      display: block;
+      max-width: 80vw;
+      max-height: 72vh;
+    }
+
+    /* hotspot overlays inside popup */
+    .phs {
+      position: absolute;
+      cursor: pointer;
+    }
+    .phs:hover {
+      background: rgba(255,255,200,.12);
+      outline: 1px solid rgba(255,255,200,.3);
+    }
+
+    /* puzzle letter cells */
+    .pcell {
+      position: absolute;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      border-radius: 3px;
+      transition: background .15s;
+    }
+    .pcell:hover { background: rgba(255,255,200,.18); }
+    .pcell.tap   { background: rgba(255,255,200,.35) !important; }
+
+    /* puzzle-progress flash states */
+    #puzzle-progress.correct {
+      border-color: rgba(80,230,120,.9);
+      color: rgba(80,230,120,1);
+    }
+    #puzzle-progress.wrong {
+      border-color: rgba(255,70,70,.9);
+      color: rgba(255,70,70,1);
+    }
+
+    /* back/close button */
+    #popup-back {
+      position: absolute;
+      top: -40px; left: 0;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.3);
+      color: #fff;
+      font-family: 'DadFont', sans-serif;
+      font-size: 14px;
+      padding: 5px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    #popup-back:hover { background: rgba(255,255,255,.22); }
+
+    /* puzzle sequence progress indicator */
+    #puzzle-progress {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.75);
+      border: 1px solid rgba(255,255,255,.25);
+      padding: 6px 24px;
+      font-size: 18px;
+      letter-spacing: 10px;
+      border-radius: 20px;
+      z-index: 210;
+      display: none;
+    }
+
+    /* ── BGM 뮤트 버튼 ── */
+    #bgm-btn {
+      position: fixed;
+      top: 16px; right: 20px;
+      background: rgba(0,0,0,.5);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      font-size: 18px;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      line-height: 1;
+      padding: 0;
+    }
+    #bgm-btn:hover { background: rgba(255,255,255,.15); }
+  </style>
+</head>
+<body>
+
+<!-- Opening sequence -->
+<div id="opening">
+  <p id="opening-text"></p>
+  <span id="opening-hint">클릭하여 계속</span>
+</div>
+
+<!-- Desk scene -->
+<div id="scene">
+  <div id="scene-wrap">
+    <img id="scene-bg" alt="">
+  </div>
+</div>
+
+<!-- Bottom text bar -->
+<div id="textbar"></div>
+
+<!-- Popup (item / puzzle / reward) -->
+<div id="popup">
+  <div id="popup-wrap">
+    <button id="popup-back">← 닫기</button>
+    <img id="popup-img" alt="">
+  </div>
+</div>
+
+<!-- Puzzle progress display -->
+<div id="puzzle-progress"></div>
+
+<!-- BGM -->
+<audio id="bgm" src="assets/audio/bgm.mp3" loop preload="auto"></audio>
+<button id="bgm-btn" title="BGM 켜기/끄기">🔊</button>
+
+<script>
+/* ═══════════════════════════════════════════════
+   EMBEDDED DATA
+═══════════════════════════════════════════════ */
+
+const TEXTS = {
+  opening1: '"아.... 왜 이렇게 어깨가 아프지..?"\n잔업이 있어 야근을 하다가 잠깐 눈을 붙였는데\n어깨의 통증으로 잠에서 깼다.',
+  opening2: '눈을 떠보니 캄캄한 어둠이 내려앉은 사무실,\n밖에는 빗소리와 함께 번개가 친다.\n전봇대에 번개가 맞은걸까? 사무실 전등과 함께\n모니터 불빛도 꺼져있는 사무실이다.',
+  opening3: '많이 무서운 사무실.. 더 이상 잔업을 할 순 없을 것 같다.\n집에 돌아가야지. 하지만 배가 너무 고파서 움직일 수가 없다.\n간식 통에서 먼저 간식을 먹어야겠다.',
+
+  물컵1:    '사무실에 흔히 있는 물컵이다.\n사실 물컵에 뭘 따라마시진 않고 대체로 필기구를 넣는 편이다.',
+  물컵2:    '물컵에 물을 따라 마시는 버릇이 좋다고 한다.\n하지만 물컵을 닦는 것이 귀찮은건 나만 그런걸까?',
+
+  달력1:    '6월 달력이다. 6월 25일에 동그라미가 쳐져있다.',
+  달력2:    '사실 4월로 되어있던 걸 6월로 급하게 수정한 달력이다.\n나만 책상위 달력의 시간이 멈춰있는건 아니겠지..?',
+
+  calculator1: '크레용 신짱 계산기이다.\n흰둥이와 짱구가 매달려 있는 제품이지만 어디론가 사라져버렸다.\n여러번 클릭해보면 다른 힌트가 나올지 모른다.',
+  calculator2: '숫자판에 8282라는 숫자가 써있다.\n다비치를 좋아하는걸까?',
+  calculator3: '어렸을 때 숫자로 글씨를 표현했던 장난이 생각난다.\n이 문제 190,000 (쉽구만)',
+
+  선풍기1:  '휴대용 선풍기이다. 사무실이 시원해지면서 이제는 쓸 일이 없어보인다.',
+  선풍기2:  '처음 입사한 날, 민호님과 공동구매한 물품이다.\n왜 아직도 살아서 움직이는거지?',
+
+  아이스티1: '낮에 산 아이스 티이다.\n반쯤 남아있지만 얼음이 녹은 것 같다.',
+  아이스티2: '얼음이 녹은 아이스티는 먹고 싶지 않다.',
+  아이스티3: '컵 홀더에 있는 건 뭘까..? 피카츄와 우사기가 합성된듯한 기괴한 모습이다.',
+
+  밥통1:    '간식통에 자물쇠가 달려있다.\n누가 잠궈놨는지 모르겠지만, 나쁜 사람인 것 같다.\n자물쇠를 눌러보자.',
+
+  아야피규어1: '경찰 아야의 피규어이다.\n아야는 역시 안경을 낀게 더 자연스럽다.',
+  아야피규어2: '이런 피규어 누가 만들어줬으면 좋겠다...',
+
+  메모지1:  '흔히 있는 메모지이다.\n메모지에는 "3주년 7월 11일 12일 많관부" 라고 적혀있다.',
+  메모지2:  '사무실에 흔히 있는 메모지이다.\n"행사 준비는 늘 행복해" 라고 적혀있다.\n역시 회사에 붙은 메모지 하나마저 계산적이다.',
+
+  'Puzzle1번1': '처음으로 풀어야 하는 자물쇠다.\n비밀번호는 4자리인 것 같은데.. 글자를 눌러볼까?',
+  'Puzzle1번오답1': '비밀번호가 틀린 것 같다. 책상에서 힌트를 더 찾아보자.',
+
+  우유도넛1: '우유소금 도너츠다.\n간식통에 이런게 들어가있어도 되는걸까?\n하지만 먹음직스러워 보인다.',
+};
+
+/* Item/popup definitions.
+   Keys must match the hotspot id used in desk hotspots. */
+const ITEMS = {
+  calculator: {
+    type: 'item',
+    img: 'assets/items/desk/calculator.png',
+    hotspots: null,
+  },
+  밥통: {
+    type: 'item',
+    img: 'assets/items/desk/밥통.png',
+    hotspots: [
+      { id: 'Puzzle1번', x: 36.02, y: 20.1, w: 28.03, h: 68.2, hasImage: true },
+    ],
+  },
+  'Puzzle1번': {
+    type: 'puzzle',
+    img: 'assets/items/desk/Puzzle1번.png',
+    hotspots: [
+      { x: 43.45, y: 41.27, w: 3.98, h: 5.37, label: '집' },
+      { x: 50.42, y: 41.76, w: 3.06, h: 4.29, label: '에' },
+      { x: 56.55, y: 41.07, w: 3.52, h: 5.66, label: '가' },
+      { x: 43.71, y: 51.51, w: 3.06, h: 3.9,  label: '이' },
+      { x: 50.23, y: 51.41, w: 3.13, h: 4.0,  label: '리' },
+      { x: 56.03, y: 51.61, w: 3.78, h: 4.39, label: '와' },
+      { x: 43.64, y: 60.68, w: 3.19, h: 4.68, label: '배' },
+      { x: 49.84, y: 60.78, w: 3.78, h: 4.68, label: '고' },
+      { x: 56.94, y: 61.46, w: 2.61, h: 4.1,  label: '파' },
+      { x: 43.77, y: 70.83, w: 3.06, h: 4.1,  label: '빨' },
+      { x: 49.9,  y: 71.12, w: 3.46, h: 4.1,  label: '간' },
+      { x: 56.62, y: 70.54, w: 3.39, h: 5.17, label: '색' },
+    ],
+    sequence: ['빨', '리', '빨', '리'],
+    reward:   '우유도넛',
+  },
+  우유도넛: {
+    type: 'reward',
+    img: 'assets/items/desk/우유도넛.png',
+    hotspots: null,
+  },
+};
+
+const DESK_HOTSPOTS = [
+  { id: '물컵',      x: 24.45, y: 61.23, w:  6.51, h: 11.62, hasImage: false },
+  { id: '달력',      x:  9.99, y: 56.93, w: 13.74, h: 18.55, hasImage: false },
+  { id: 'calculator',x: 21.71, y: 74.12, w: 12.37, h: 13.77, hasImage: true  },
+  { id: '선풍기',    x: 41.89, y: 48.83, w: 11.13, h: 23.54, hasImage: false },
+  { id: '아이스티',  x: 65.27, y: 48.14, w:  8.46, h: 24.32, hasImage: false },
+  { id: '밥통',      x: 72.62, y: 61.43, w: 16.21, h: 16.99, hasImage: true  },
+  { id: '아야피규어',x: 77.31, y:  6.74, w:  8.85, h: 24.51, hasImage: false },
+  { id: '메모지',    x: 76.07, y: 33.79, w: 16.15, h: 24.51, hasImage: false },
+];
+
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+
+const S = {
+  openStep:       0,     // 0-based; 0 = showing opening1
+  clickCounts:    {},    // { itemId: number }
+  textTimer:      null,
+  popStack:       [],    // stack of ITEMS keys
+  puzzleSeq:      [],    // labels entered so far (any label, fills slots in order)
+  puzzleLocked:   false, // true while evaluating answer (blocks further input)
+};
+
+/* ═══════════════════════════════════════════════
+   DOM
+═══════════════════════════════════════════════ */
+
+const $opening  = document.getElementById('opening');
+const $openText = document.getElementById('opening-text');
+const $scene    = document.getElementById('scene');
+const $wrap     = document.getElementById('scene-wrap');
+const $bg       = document.getElementById('scene-bg');
+const $textbar  = document.getElementById('textbar');
+const $popup    = document.getElementById('popup');
+const $pWrap    = document.getElementById('popup-wrap');
+const $pImg     = document.getElementById('popup-img');
+const $pBack    = document.getElementById('popup-back');
+const $pzProg   = document.getElementById('puzzle-progress');
+const $bgm      = document.getElementById('bgm');
+const $bgmBtn   = document.getElementById('bgm-btn');
+
+/* ═══════════════════════════════════════════════
+   BGM
+═══════════════════════════════════════════════ */
+
+let bgmStarted = false;
+
+function startBgm() {
+  if (bgmStarted) return;
+  bgmStarted = true;
+  $bgm.volume = 0.45;
+  $bgm.play().catch(() => {}); // 재생 실패 시 조용히 무시
+}
+
+$bgmBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if ($bgm.paused) {
+    $bgm.play().catch(() => {});
+    $bgmBtn.textContent = '🔊';
+  } else {
+    $bgm.pause();
+    $bgmBtn.textContent = '🔇';
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   OPENING
+═══════════════════════════════════════════════ */
+
+function initOpening() {
+  $openText.textContent = TEXTS.opening1;
+  $opening.addEventListener('click', advanceOpening);
+}
+
+function advanceOpening() {
+  startBgm(); // 첫 클릭 시 BGM 시작 (브라우저 자동재생 정책 대응)
+  S.openStep++;
+  if (S.openStep < 3) {
+    $openText.textContent = TEXTS['opening' + (S.openStep + 1)];
+  } else {
+    $opening.removeEventListener('click', advanceOpening);
+    $opening.style.transition = 'opacity 0.9s';
+    $opening.style.opacity = '0';
+    setTimeout(startDesk, 900);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   DESK SCENE
+═══════════════════════════════════════════════ */
+
+function startDesk() {
+  $opening.style.display = 'none';
+  $scene.style.display = 'block';
+
+  $bg.onload = () => {
+    layoutScene();
+    buildDeskHotspots();
+  };
+  $bg.src = 'assets/backgrounds/desk.png';
+
+  window.addEventListener('resize', () => {
+    layoutScene();
+    buildDeskHotspots();
+  });
+}
+
+function layoutScene() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const s  = Math.min(vw / $bg.naturalWidth, vh / $bg.naturalHeight);
+  const w  = $bg.naturalWidth  * s;
+  const h  = $bg.naturalHeight * s;
+  Object.assign($wrap.style, {
+    left:   ((vw - w) / 2) + 'px',
+    top:    ((vh - h) / 2) + 'px',
+    width:  w + 'px',
+    height: h + 'px',
+  });
+}
+
+function buildDeskHotspots() {
+  $wrap.querySelectorAll('.hs').forEach(e => e.remove());
+  DESK_HOTSPOTS.forEach(hs => {
+    const d = document.createElement('div');
+    d.className = 'hs';
+    Object.assign(d.style, {
+      left:   hs.x + '%',
+      top:    hs.y + '%',
+      width:  hs.w + '%',
+      height: hs.h + '%',
+    });
+    d.addEventListener('click', e => { e.stopPropagation(); onItemClick(hs); });
+    $wrap.appendChild(d);
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   ITEM INTERACTION
+═══════════════════════════════════════════════ */
+
+function onItemClick(hs) {
+  const t = nextText(hs.id);
+  if (t) showText(t);
+  if (hs.hasImage && ITEMS[hs.id]) {
+    pushPopup(hs.id);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   TEXT BAR
+═══════════════════════════════════════════════ */
+
+function nextText(id) {
+  let count = 0;
+  for (let i = 1; i <= 10; i++) {
+    if (TEXTS[id + i]) count = i;
+    else break;
+  }
+  if (!count) return null;
+
+  if (S.clickCounts[id] == null) S.clickCounts[id] = 0;
+  const idx = (S.clickCounts[id]++ % count) + 1;
+  return TEXTS[id + idx];
+}
+
+function showText(t) {
+  clearTimeout(S.textTimer);
+  $textbar.textContent = t;
+  $textbar.classList.add('on');
+  S.textTimer = setTimeout(() => $textbar.classList.remove('on'), 5000);
+}
+
+/* ═══════════════════════════════════════════════
+   POPUP SYSTEM
+═══════════════════════════════════════════════ */
+
+function pushPopup(key) {
+  S.popStack.push(key);
+  renderTopPopup();
+}
+
+function popPopup() {
+  S.popStack.pop();
+  S.puzzleSeq = [];
+  $pzProg.style.display = 'none';
+
+  clearPopupOverlays();
+
+  if (S.popStack.length === 0) {
+    $popup.classList.remove('on');
+  } else {
+    renderTopPopup();
+  }
+}
+
+function clearPopupOverlays() {
+  $pWrap.querySelectorAll('.phs, .pcell').forEach(e => e.remove());
+}
+
+function renderTopPopup() {
+  const key  = S.popStack[S.popStack.length - 1];
+  const data = ITEMS[key];
+
+  clearPopupOverlays();
+  $popup.classList.add('on');
+
+  function onImgReady() {
+    $pWrap.style.width  = $pImg.offsetWidth  + 'px';
+    $pWrap.style.height = $pImg.offsetHeight + 'px';
+    buildPopupOverlay(data);
+  }
+  $pImg.onload = onImgReady;
+  $pImg.src = data.img;
+  // If already cached, onload won't fire — call directly
+  if ($pImg.complete && $pImg.naturalWidth) onImgReady();
+}
+
+function buildPopupOverlay(data) {
+  if (!data.hotspots) return;
+
+  if (data.type === 'puzzle') {
+    S.puzzleSeq = [];
+    updatePuzzleProgress(data);
+
+    data.hotspots.forEach(hs => {
+      const c = document.createElement('div');
+      c.className = 'pcell';
+      Object.assign(c.style, {
+        left:   hs.x + '%',
+        top:    hs.y + '%',
+        width:  hs.w + '%',
+        height: hs.h + '%',
+      });
+      c.textContent = hs.label;
+      c.addEventListener('click', e => {
+        e.stopPropagation();
+        onPuzzleClick(hs.label, c, data);
+      });
+      $pWrap.appendChild(c);
+    });
+
+  } else {
+    // item hotspots → open sub-popups
+    data.hotspots.forEach(hs => {
+      const d = document.createElement('div');
+      d.className = 'phs';
+      Object.assign(d.style, {
+        left:   hs.x + '%',
+        top:    hs.y + '%',
+        width:  hs.w + '%',
+        height: hs.h + '%',
+      });
+      d.addEventListener('click', e => {
+        e.stopPropagation();
+        onSubHotspotClick(hs);
+      });
+      $pWrap.appendChild(d);
+    });
+  }
+}
+
+function onSubHotspotClick(hs) {
+  const t = nextText(hs.id);
+  if (t) showText(t);
+  if (hs.hasImage && ITEMS[hs.id]) {
+    pushPopup(hs.id);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   PUZZLE
+═══════════════════════════════════════════════ */
+
+function updatePuzzleProgress(data) {
+  const len = data.sequence.length;
+  let display = '';
+  for (let i = 0; i < len; i++) {
+    display += (i < S.puzzleSeq.length ? S.puzzleSeq[i] : '_');
+    if (i < len - 1) display += ' ';
+  }
+  $pzProg.textContent = display;
+  $pzProg.style.display = 'block';
+}
+
+function onPuzzleClick(label, el, data) {
+  // Block input while evaluating (during the brief result flash)
+  if (S.puzzleLocked) return;
+  // Block if already full (shouldn't happen, but guard anyway)
+  if (S.puzzleSeq.length >= data.sequence.length) return;
+
+  S.puzzleSeq.push(label);
+
+  // Brief highlight on the tapped cell to confirm the click
+  el.classList.add('tap');
+  setTimeout(() => el.classList.remove('tap'), 200);
+
+  updatePuzzleProgress(data);
+
+  if (S.puzzleSeq.length < data.sequence.length) return; // not full yet
+
+  // ── 4글자 모두 입력됨 → 정답 판정 ──
+  S.puzzleLocked = true;
+  const correct = S.puzzleSeq.every((v, i) => v === data.sequence[i]);
+
+  if (correct) {
+    $pzProg.classList.add('correct');
+    setTimeout(() => {
+      $pzProg.classList.remove('correct');
+      $pzProg.style.display = 'none';
+      S.puzzleSeq  = [];
+      S.puzzleLocked = false;
+      unlockReward(data.reward);
+    }, 500);
+  } else {
+    $pzProg.classList.add('wrong');
+    showText(TEXTS['Puzzle1번오답1']);
+    setTimeout(() => {
+      $pzProg.classList.remove('wrong');
+      S.puzzleSeq  = [];
+      S.puzzleLocked = false;
+      updatePuzzleProgress(data); // reset to "_ _ _ _"
+    }, 800);
+  }
+}
+
+function unlockReward(rewardId) {
+  const t = nextText(rewardId);
+  if (t) showText(t);
+  pushPopup(rewardId);
+}
+
+/* ═══════════════════════════════════════════════
+   POPUP CLOSE
+═══════════════════════════════════════════════ */
+
+$pBack.addEventListener('click', e => { e.stopPropagation(); popPopup(); });
+
+// Click dark area outside popup frame also closes
+$popup.addEventListener('click', e => {
+  if (e.target === $popup) popPopup();
+});
+
+/* ═══════════════════════════════════════════════
+   START
+═══════════════════════════════════════════════ */
+
+initOpening();
+</script>
+</body>
+</html>

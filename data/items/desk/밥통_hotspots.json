@@ -1,0 +1,14 @@
+{
+  "imageType": "item",
+  "scene": "desk",
+  "hotspots": [
+    {
+      "id": "Puzzle1번",
+      "x": 36.02,
+      "y": 20.1,
+      "w": 28.03,
+      "h": 68.2,
+      "hasImage": true
+    }
+  ]
+}

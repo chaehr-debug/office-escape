@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Hotspot Editor — Office Escape</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    #toolbar h1 { font-size: 14px; color: #e6edf3; margin-right: 4px; }
+
+    .tb-sep {
+      width: 1px; height: 24px;
+      background: #30363d;
+      margin: 0 4px;
+    }
+
+    .tb-label { font-size: 12px; color: #8b949e; white-space: nowrap; }
+
+    select, input[type="text"] {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    select { cursor: pointer; }
+
+    /* Image type tabs */
+    #type-tabs { display: flex; gap: 4px; }
+    .type-tab {
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid #30363d;
+      background: #21262d;
+      color: #8b949e;
+      transition: all 0.15s;
+    }
+    .type-tab:hover { border-color: #8b949e; color: #c9d1d9; }
+    .type-tab.active { background: #1f3a5f; border-color: #58a6ff; color: #58a6ff; }
+    .type-tab.active.item  { background: #1f3a28; border-color: #3fb950; color: #3fb950; }
+    .type-tab.active.puzzle { background: #3a1f3a; border-color: #bc8cff; color: #bc8cff; }
+
+    .btn {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      padding: 6px 13px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #2d333b; border-color: #8b949e; }
+    .btn.primary { background: #238636; border-color: #2ea043; color: #fff; }
+    .btn.primary:hover { background: #2ea043; }
+    .btn.danger { border-color: #f85149; color: #f85149; }
+    .btn.danger:hover { background: #3d1c1c; }
+
+    #toolbar-right { margin-left: auto; display: flex; gap: 8px; }
+
+    /* ── Main ── */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Canvas area ── */
+    #canvas-wrap {
+      flex: 1;
+      overflow: auto;
+      background: #090d12;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    #stage {
+      position: relative;
+      display: inline-block;
+      cursor: crosshair;
+      user-select: none;
+      box-shadow: 0 0 0 1px #30363d;
+    }
+
+    #bg-image { display: block; max-width: 100%; height: auto; pointer-events: none; }
+
+    #hotspot-layer, #draw-layer { position: absolute; inset: 0; }
+    #draw-layer { z-index: 10; }
+    #hotspot-layer { z-index: 5; }
+
+    /* Hotspot rects */
+    .hs-rect {
+      position: absolute;
+      border: 2px solid rgba(255,200,0,0.85);
+      background: rgba(255,200,0,0.12);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .hs-rect:hover { background: rgba(255,200,0,0.28); }
+    .hs-rect.has-image { border-color: rgba(63,185,80,0.85); background: rgba(63,185,80,0.1); }
+    .hs-rect.has-image:hover { background: rgba(63,185,80,0.25); }
+    .hs-rect.puzzle-point { border-color: rgba(188,140,255,0.85); background: rgba(188,140,255,0.12); }
+    .hs-rect.puzzle-point:hover { background: rgba(188,140,255,0.28); }
+
+    .hs-label {
+      position: absolute;
+      top: 2px; left: 4px;
+      background: rgba(0,0,0,0.75);
+      color: #ffd700;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .hs-rect.has-image .hs-label { color: #3fb950; }
+    .hs-rect.puzzle-point .hs-label { color: #bc8cff; font-size: 13px; font-weight: bold; }
+
+    #preview-rect {
+      position: absolute;
+      border: 2px dashed rgba(255,200,0,0.9);
+      background: rgba(255,200,0,0.08);
+      pointer-events: none;
+      display: none;
+      z-index: 15;
+    }
+
+    #no-image {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #3d444d; gap: 12px;
+      min-width: 600px; min-height: 400px;
+    }
+    #no-image .icon { font-size: 48px; }
+    #no-image p { font-size: 14px; line-height: 1.7; text-align: center; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 270px;
+      background: #161b22;
+      border-left: 1px solid #21262d;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    #sidebar-header {
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid #21262d;
+      font-size: 13px;
+      font-weight: bold;
+      color: #e6edf3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #hs-count {
+      background: #30363d; color: #8b949e;
+      font-size: 11px; padding: 2px 8px;
+      border-radius: 10px; font-weight: normal;
+    }
+
+    #hotspot-list { flex: 1; overflow-y: auto; padding: 8px; }
+    #hotspot-list::-webkit-scrollbar { width: 4px; }
+    #hotspot-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+
+    .list-item {
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .list-item-info { flex: 1; min-width: 0; }
+    .list-name { font-size: 13px; color: #e6edf3; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .list-sub  { font-size: 10px; color: #6e7681; margin-top: 2px; display: block; }
+    .list-del  {
+      background: none; border: 1px solid #3d1c1c; color: #f85149;
+      border-radius: 4px; padding: 3px 7px; font-size: 11px;
+      cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+    }
+    .list-del:hover { background: #3d1c1c; }
+    .list-empty { text-align: center; color: #3d444d; font-size: 12px; padding: 24px 16px; line-height: 1.8; }
+
+    /* Puzzle config panel */
+    #puzzle-config {
+      border-top: 1px solid #21262d;
+      padding: 12px 16px;
+      display: none;
+    }
+    #puzzle-config.visible { display: block; }
+    #puzzle-config h4 { font-size: 12px; color: #bc8cff; margin-bottom: 10px; }
+
+    .pc-row { margin-bottom: 10px; }
+    .pc-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; display: block; }
+    .pc-input {
+      width: 100%;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 4px; padding: 6px 8px;
+      font-size: 12px; color: #e6edf3; font-family: inherit;
+    }
+    .pc-input:focus { outline: none; border-color: #bc8cff; }
+    .pc-hint { font-size: 10px; color: #6e7681; margin-top: 3px; }
+
+    #sequence-preview {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+    }
+    .seq-chip {
+      background: #3a1f3a; border: 1px solid #bc8cff;
+      color: #bc8cff; padding: 2px 8px;
+      border-radius: 10px; font-size: 12px;
+    }
+
+    /* Legend */
+    #legend {
+      padding: 10px 16px; border-top: 1px solid #21262d;
+      font-size: 11px; color: #6e7681; line-height: 2.2;
+    }
+    .legend-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 2px; margin-right: 4px; vertical-align: middle;
+    }
+
+    /* ── Modal ── */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); z-index: 100;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    #modal-overlay.open { display: flex; }
+
+    #modal-box {
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 10px; padding: 22px 26px;
+      width: 360px; box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+      animation: modalIn 0.18s ease;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.95) translateY(8px); opacity: 0; }
+      to   { transform: scale(1) translateY(0);      opacity: 1; }
+    }
+
+    #modal-box h3 { font-size: 15px; color: #e6edf3; margin-bottom: 16px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 5px; }
+    .form-group input[type="text"] {
+      width: 100%; border-radius: 5px; padding: 8px 10px;
+      font-size: 14px; outline: none; transition: border-color 0.15s;
+    }
+    .form-group input[type="text"]:focus { border-color: #58a6ff; }
+
+    .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .checkbox-row input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #3fb950; }
+    .checkbox-row span { font-size: 13px; color: #c9d1d9; }
+    .checkbox-hint { font-size: 11px; color: #6e7681; margin-top: 4px; margin-left: 23px; }
+
+    /* Fields that show/hide by type */
+    .field-normal { display: block; }
+    .field-puzzle { display: none; }
+    body.mode-puzzle .field-normal { display: none; }
+    body.mode-puzzle .field-puzzle { display: block; }
+
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+    /* ── Status bar ── */
+    #statusbar {
+      background: #161b22; border-top: 1px solid #21262d;
+      padding: 5px 16px; font-size: 11px; color: #6e7681;
+      flex-shrink: 0; display: flex; gap: 20px;
+    }
+    #status-coords { color: #8b949e; }
+    #status-mode   { }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>🎮 Hotspot Editor</h1>
+
+  <div class="tb-sep"></div>
+  <span class="tb-label">타입:</span>
+  <div id="type-tabs">
+    <div class="type-tab active" data-type="background">🖼 배경</div>
+    <div class="type-tab item"   data-type="item">📦 아이템</div>
+    <div class="type-tab puzzle" data-type="puzzle">🧩 퍼즐</div>
+  </div>
+
+  <div class="tb-sep"></div>
+  <span class="tb-label">씬:</span>
+  <select id="scene-select">
+    <option value="desk">desk</option>
+    <option value="office">office</option>
+    <option value="hallway">hallway</option>
+    <option value="exit">exit</option>
+  </select>
+
+  <button class="btn" id="btn-load-bg">📁 이미지 로드</button>
+  <input type="file" id="bg-file" accept="image/*" style="display:none">
+
+  <div id="toolbar-right">
+    <button class="btn danger" id="btn-clear">🗑 전체 삭제</button>
+    <button class="btn primary" id="btn-export">💾 JSON 내보내기</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="canvas-wrap">
+    <div id="stage">
+      <div id="no-image">
+        <div class="icon">🖼️</div>
+        <p><strong>이미지 로드</strong> 버튼을 눌러<br>배경 / 아이템 / 퍼즐 이미지를<br>불러오세요.</p>
+      </div>
+      <img id="bg-image" style="display:none" draggable="false">
+      <div id="hotspot-layer"></div>
+      <div id="draw-layer">
+        <div id="preview-rect"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">
+      핫스팟 목록
+      <span id="hs-count">0개</span>
+    </div>
+    <div id="hotspot-list">
+      <div class="list-empty">이미지를 불러온 뒤<br>아이템 위를 드래그해서<br>핫스팟을 추가하세요.</div>
+    </div>
+
+    <!-- Puzzle-only config -->
+    <div id="puzzle-config">
+      <h4>🧩 퍼즐 설정</h4>
+      <div class="pc-row">
+        <span class="pc-label">정답 시퀀스 (쉼표로 구분)</span>
+        <input class="pc-input" id="pc-sequence" placeholder="예: 빨,리,빨,리" type="text">
+        <div class="pc-hint">클릭해야 하는 순서를 입력하세요</div>
+        <div id="sequence-preview"></div>
+      </div>
+      <div class="pc-row">
+        <span class="pc-label">보상 이미지 파일명</span>
+        <input class="pc-input" id="pc-reward" placeholder="예: 우유도넛.png" type="text">
+        <div class="pc-hint">rewards 폴더의 파일명</div>
+      </div>
+    </div>
+
+    <div id="legend">
+      <div id="legend-normal">
+        <div><span class="legend-dot" style="background:rgba(255,200,0,0.5);border:1px solid #ffd700;"></span>텍스트만 표시</div>
+        <div><span class="legend-dot" style="background:rgba(63,185,80,0.5);border:1px solid #3fb950;"></span>이미지 팝업 + 텍스트</div>
+      </div>
+      <div id="legend-puzzle" style="display:none">
+        <div><span class="legend-dot" style="background:rgba(188,140,255,0.5);border:1px solid #bc8cff;"></span>퍼즐 클릭 포인트 (라벨)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="status-mode">타입: 배경 (background)</span>
+  <span id="status-coords">x: — , y: —</span>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">🔲 핫스팟 추가</h3>
+
+    <!-- 배경/아이템 전용 -->
+    <div class="field-normal">
+      <div class="form-group">
+        <label>아이템 ID (파일명과 동일하게)</label>
+        <input type="text" id="item-id" placeholder="예: calculator, 밥통, phone ...">
+      </div>
+      <div class="form-group">
+        <label class="checkbox-row">
+          <input type="checkbox" id="has-image">
+          <span>이미지 팝업 연결</span>
+        </label>
+        <div class="checkbox-hint">체크 시 클릭하면 items 폴더의 이미지가 팝업으로 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- 퍼즐 전용 -->
+    <div class="field-puzzle">
+      <div class="form-group">
+        <label>클릭 포인트 라벨 (시퀀스에 사용될 값)</label>
+        <input type="text" id="puzzle-label" placeholder="예: 빨, 리, A, 1 ...">
+      </div>
+      <div class="form-group">
+        <label>포인트 설명 (선택사항)</label>
+        <input type="text" id="puzzle-desc" placeholder="예: 빨간 버튼, 왼쪽 스위치 ...">
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn" id="btn-cancel">취소</button>
+      <button class="btn primary" id="btn-confirm">추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const editor = {
+  hotspots: [],
+  imageType: 'background',  // 'background' | 'item' | 'puzzle'
+  isDrawing: false,
+  startX: 0,
+  startY: 0,
+  pendingRect: null,
+
+  TYPE_LABELS: {
+    background: '배경 (background)',
+    item:       '아이템 (item)',
+    puzzle:     '퍼즐 (puzzle)'
+  },
+
+  init() {
+    // Type tabs
+    document.querySelectorAll('.type-tab').forEach(tab => {
+      tab.addEventListener('click', () => this.setType(tab.dataset.type));
+    });
+
+    document.getElementById('btn-load-bg').onclick = () => document.getElementById('bg-file').click();
+    document.getElementById('bg-file').onchange = e => this.loadBg(e);
+    document.getElementById('btn-export').onclick = () => this.exportJson();
+    document.getElementById('btn-clear').onclick  = () => this.clearAll();
+    document.getElementById('btn-confirm').onclick = () => this.confirm();
+    document.getElementById('btn-cancel').onclick  = () => this.cancelModal();
+    document.getElementById('modal-overlay').onclick = e => {
+      if (e.target.id === 'modal-overlay') this.cancelModal();
+    };
+
+    ['item-id', 'puzzle-label', 'puzzle-desc'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') this.confirm();
+        if (e.key === 'Escape') this.cancelModal();
+      });
+    });
+
+    // Sequence preview
+    document.getElementById('pc-sequence').addEventListener('input', e => {
+      this.renderSeqPreview(e.target.value);
+    });
+
+    // Draw events
+    const drawLayer = document.getElementById('draw-layer');
+    drawLayer.onmousedown = e => this.onDown(e);
+    drawLayer.onmousemove = e => this.onMove(e);
+    drawLayer.onmouseup   = e => this.onUp(e);
+    drawLayer.onmouseleave = () => { if (this.isDrawing) this.cancelDraw(); };
+
+    // Status coords
+    document.getElementById('stage').addEventListener('mousemove', e => {
+      const r = document.getElementById('stage').getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width  * 100).toFixed(1);
+      const y = ((e.clientY - r.top)  / r.height * 100).toFixed(1);
+      document.getElementById('status-coords').textContent = `x: ${x}%,  y: ${y}%`;
+    });
+  },
+
+  setType(type) {
+    this.imageType = type;
+    document.querySelectorAll('.type-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.type === type);
+    });
+    document.getElementById('status-mode').textContent = '타입: ' + this.TYPE_LABELS[type];
+
+    const isPuzzle = type === 'puzzle';
+    document.getElementById('puzzle-config').classList.toggle('visible', isPuzzle);
+    document.getElementById('legend-normal').style.display = isPuzzle ? 'none' : 'block';
+    document.getElementById('legend-puzzle').style.display = isPuzzle ? 'block' : 'none';
+    document.body.classList.toggle('mode-puzzle', isPuzzle);
+  },
+
+  renderSeqPreview(val) {
+    const items = val.split(',').map(s => s.trim()).filter(Boolean);
+    const preview = document.getElementById('sequence-preview');
+    preview.innerHTML = items.map(it => `<span class="seq-chip">${it}</span>`).join('');
+  },
+
+  loadBg(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = document.getElementById('bg-image');
+    img.onload = () => {
+      document.getElementById('no-image').style.display = 'none';
+      img.style.display = 'block';
+    };
+    img.src = url;
+    e.target.value = '';
+  },
+
+  getStagePct(e) {
+    const r = document.getElementById('stage').getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(e.clientX - r.left, r.width)),
+      y: Math.max(0, Math.min(e.clientY - r.top,  r.height)),
+      pw: r.width,
+      ph: r.height
+    };
+  },
+
+  onDown(e) {
+    if (document.getElementById('bg-image').style.display === 'none') return;
+    e.preventDefault();
+    const p = this.getStagePct(e);
+    this.isDrawing = true;
+    this.startX = p.x;
+    this.startY = p.y;
+    const pr = document.getElementById('preview-rect');
+    pr.style.display = 'block';
+    pr.style.left = p.x + 'px'; pr.style.top = p.y + 'px';
+    pr.style.width = '0px';     pr.style.height = '0px';
+  },
+
+  onMove(e) {
+    if (!this.isDrawing) return;
+    const p = this.getStagePct(e);
+    const x = Math.min(this.startX, p.x), y = Math.min(this.startY, p.y);
+    const w = Math.abs(p.x - this.startX), h = Math.abs(p.y - this.startY);
+    const pr = document.getElementById('preview-rect');
+    pr.style.left = x + 'px'; pr.style.top = y + 'px';
+    pr.style.width = w + 'px'; pr.style.height = h + 'px';
+  },
+
+  onUp(e) {
+    if (!this.isDrawing) return;
+    this.isDrawing = false;
+    document.getElementById('preview-rect').style.display = 'none';
+
+    const p = this.getStagePct(e);
+    const x = Math.min(this.startX, p.x), y = Math.min(this.startY, p.y);
+    const w = Math.abs(p.x - this.startX), h = Math.abs(p.y - this.startY);
+    if (w < 8 || h < 8) return;
+
+    this.pendingRect = {
+      x: parseFloat((x / p.pw * 100).toFixed(2)),
+      y: parseFloat((y / p.ph * 100).toFixed(2)),
+      w: parseFloat((w / p.pw * 100).toFixed(2)),
+      h: parseFloat((h / p.ph * 100).toFixed(2))
+    };
+
+    // Prepare modal
+    document.getElementById('item-id').value = '';
+    document.getElementById('puzzle-label').value = '';
+    document.getElementById('puzzle-desc').value = '';
+    document.getElementById('has-image').checked = false;
+
+    const titles = { background: '🖼 배경 핫스팟 추가', item: '📦 아이템 핫스팟 추가', puzzle: '🧩 퍼즐 포인트 추가' };
+    document.getElementById('modal-title').textContent = titles[this.imageType];
+
+    document.getElementById('modal-overlay').classList.add('open');
+    setTimeout(() => {
+      const focus = this.imageType === 'puzzle' ? 'puzzle-label' : 'item-id';
+      document.getElementById(focus).focus();
+    }, 80);
+  },
+
+  cancelDraw() {
+    this.isDrawing = false;
+    document.getElementById('preview-rect').style.display = 'none';
+  },
+
+  confirm() {
+    let hs;
+
+    if (this.imageType === 'puzzle') {
+      const label = document.getElementById('puzzle-label').value.trim();
+      if (!label) { this.shake('puzzle-label'); return; }
+      const desc = document.getElementById('puzzle-desc').value.trim();
+      hs = { ...this.pendingRect, label, ...(desc ? { desc } : {}) };
+    } else {
+      const id = document.getElementById('item-id').value.trim();
+      if (!id) { this.shake('item-id'); return; }
+      const hasImage = document.getElementById('has-image').checked;
+      hs = { id, ...this.pendingRect, hasImage };
+    }
+
+    this.hotspots.push(hs);
+    this.pendingRect = null;
+    document.getElementById('modal-overlay').classList.remove('open');
+    this.renderHotspots();
+    this.renderList();
+  },
+
+  shake(inputId) {
+    const el = document.getElementById(inputId);
+    el.style.borderColor = '#f85149';
+    el.focus();
+    setTimeout(() => { el.style.borderColor = ''; }, 1500);
+  },
+
+  cancelModal() {
+    this.pendingRect = null;
+    document.getElementById('modal-overlay').classList.remove('open');
+  },
+
+  deleteHotspot(index) {
+    this.hotspots.splice(index, 1);
+    this.renderHotspots();
+    this.renderList();
+  },
+
+  renderHotspots() {
+    const layer = document.getElementById('hotspot-layer');
+    layer.innerHTML = '';
+    this.hotspots.forEach((hs, i) => {
+      const div = document.createElement('div');
+      const isPuzzle = !!hs.label;
+      div.className = 'hs-rect' + (isPuzzle ? ' puzzle-point' : (hs.hasImage ? ' has-image' : ''));
+      div.style.left = hs.x + '%'; div.style.top = hs.y + '%';
+      div.style.width = hs.w + '%'; div.style.height = hs.h + '%';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'hs-label';
+      lbl.textContent = isPuzzle ? hs.label : (hs.id + (hs.hasImage ? ' 🖼' : ''));
+      div.appendChild(lbl);
+
+      div.title = `클릭해서 삭제`;
+      div.onclick = e => {
+        e.stopPropagation();
+        const name = isPuzzle ? hs.label : hs.id;
+        if (confirm(`"${name}" 핫스팟을 삭제할까요?`)) this.deleteHotspot(i);
+      };
+      layer.appendChild(div);
+    });
+  },
+
+  renderList() {
+    const list = document.getElementById('hotspot-list');
+    document.getElementById('hs-count').textContent = this.hotspots.length + '개';
+
+    if (this.hotspots.length === 0) {
+      list.innerHTML = '<div class="list-empty">이미지를 불러온 뒤<br>아이템 위를 드래그해서<br>핫스팟을 추가하세요.</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    this.hotspots.forEach((hs, i) => {
+      const isPuzzle = !!hs.label;
+      const name = isPuzzle ? `"${hs.label}"` : (hs.id + (hs.hasImage ? ' 🖼' : ''));
+      const sub  = isPuzzle ? (hs.desc || '') : `${hs.x}%, ${hs.y}%  /  ${hs.w}×${hs.h}%`;
+
+      const div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerHTML = `
+        <div class="list-item-info">
+          <span class="list-name">${name}</span>
+          <span class="list-sub">${sub}</span>
+        </div>
+        <button class="list-del">삭제</button>
+      `;
+      div.querySelector('.list-del').onclick = () => this.deleteHotspot(i);
+      list.appendChild(div);
+    });
+  },
+
+  clearAll() {
+    if (this.hotspots.length === 0) return;
+    if (!confirm('모든 핫스팟을 삭제할까요?')) return;
+    this.hotspots = [];
+    this.renderHotspots();
+    this.renderList();
+  },
+
+  exportJson() {
+    if (this.hotspots.length === 0) { alert('내보낼 핫스팟이 없습니다.'); return; }
+
+    const scene = document.getElementById('scene-select').value;
+    let data = { imageType: this.imageType, scene, hotspots: this.hotspots };
+
+    // Add puzzle-specific fields
+    if (this.imageType === 'puzzle') {
+      const seqRaw = document.getElementById('pc-sequence').value.trim();
+      const reward = document.getElementById('pc-reward').value.trim();
+      data.sequence = seqRaw ? seqRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (reward) data.reward = reward;
+    }
+
+    // Determine filename & save path hint
+    const paths = {
+      background: `data/backgrounds/${scene}_hotspots.json`,
+      item:       `data/items/${scene}/[이미지명]_hotspots.json`,
+      puzzle:     `data/puzzles/${scene}/[퍼즐명]_hotspots.json`
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+
+    const defaultNames = { background: `${scene}_hotspots`, item: `item_hotspots`, puzzle: `puzzle_hotspots` };
+    const filename = prompt('저장할 파일명을 입력하세요 (.json 자동 추가)', defaultNames[this.imageType]);
+    if (!filename) { URL.revokeObjectURL(url); return; }
+
+    a.download = filename.replace(/\.json$/, '') + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    alert(`저장 완료!\n\n저장 경로 안내:\n${paths[this.imageType]}`);
+  }
+};
+
+editor.init();
+</script>
+</body>
+</html>
